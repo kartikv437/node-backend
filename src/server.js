@@ -366,9 +366,8 @@ app.get('/test', (req, res) => {
   res.status(200).send('✅ Backend is running');
 });
 
-app.listen(3001, () => {
-    console.log('Server is running on port 3001');
-});
+const PORT = process.env.PORT || 3001;
+app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
 
 
 // mongo DB Connection
