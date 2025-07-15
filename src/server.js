@@ -362,6 +362,10 @@ app.post('/uploadImage', async (req, res) => {
     }
 })
 
+app.get('/test', (req, res) => {
+  res.status(200).send('✅ Backend is running');
+});
+
 app.listen(3001, () => {
     console.log('Server is running on port 3001');
 });
