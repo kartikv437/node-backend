@@ -15,15 +15,18 @@
     "axios": "^1.7.4",
     "bcrypt": "^5.1.1",
     "body-parser": "1.20.1",
+    "cloudinary": "^2.7.0",
     "cors": "^2.8.5",
-    "dotenv": "^16.0.3",
+    "dotenv": "^16.6.1",
     "express": "^5.1.0",
     "jsonwebtoken": "^9.0.2",
     "mongoose": "^5.13.23",
+    "multer": "^2.0.1",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-router-dom": "^6.26.1",
     "react-scripts": "5.0.1",
+    "stripe": "^18.3.0",
     "styled-components": "^6.1.12",
     "web-vitals": "^2.1.4"
   },
@@ -32,7 +35,7 @@
     "build": "react-scripts build",
     "test": "react-scripts test",
     "eject": "react-scripts eject",
-    "backend-serve": "nodemon ./src/api.js"
+    "backend-serve": "nodemon ./src/server.js"
   },
   "eslintConfig": {
     "extends": [
@@ -55,5 +58,18 @@
   "devDependencies": {
     "eslint-plugin-react-hooks": "^4.6.2",
     "nodemon": "^2.0.19"
-  }
+  },
+  "description": "This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).",
+  "main": "index.js",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/kartikv437/Registration.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/kartikv437/Registration/issues"
+  },
+  "homepage": "https://github.com/kartikv437/Registration#readme"
 }

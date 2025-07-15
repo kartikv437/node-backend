@@ -5,29 +5,151 @@ const cors = require("cors");
 const mongoose = require('mongoose');
 const dotenv = require('dotenv');
 dotenv.config({ path: '.env' });
-const User = require('../src/schema/user');
-const blogs= require('../src/schema/blogsData');
+const User = require('./schema/user');
+const blogs = require('./schema/blogsData');
 app.use(bodyParser.urlencoded({ extended: false }));
 app.use(bodyParser.json());
 app.use(cors());
-const Version = require('../src/schema/versionHistory');
+const Version = require('./schema/versionHistory');
 const crypto = require('crypto');
 const secret = crypto.randomBytes(64).toString('hex');
 const jwt = require('jsonwebtoken');
 const JWT_SECRET = process.env.JWT_SECRET || secret;
+const stripe = require("stripe")("sk_test_51RjIueFVHBcv9MBMTsZIZisRZgcc3siuGnBXuUw9NJHDO9hAmsKEYpsaLZnWV35XWTTL7zjeiHdFLgGHCx9Z7M1D00lR3ECrWV");
+app.use(express.json());
 
+const cloudinary = require('cloudinary').v2;
+const { Readable } = require('stream');
+
+const StudentDocuments = require('./schema/StudentDocuments');
+
+const fs = require('fs');
+const path = require('path');
+
+const uploadsPath = path.join(__dirname, 'uploads'); // ✅ inside src/uploads
+
+
+const multer = require('multer');
+app.use((req, res, next) => {
+    console.log(`[${req.method}] ${req.url}`);
+    next();
+});
+
+const storage = multer.memoryStorage();
+
+
+cloudinary.config({
+    cloud_name: process.env.CLOUD_NAME,
+    api_key: process.env.CLOUD_API_KEY,
+    api_secret: process.env.CLOUD_API_SECRET,
+});
+
+if (!fs.existsSync(uploadsPath)) {
+    fs.mkdirSync(uploadsPath, { recursive: true });
+    console.log('✅ uploads folder created at:', uploadsPath);
+} else {
+    console.log('✅ uploads folder already exists at:', uploadsPath);
+}
+
+
+// Multer Setup
+// const storage = multer.diskStorage({
+//     destination: function (req, file, cb) {
+//         cb(null, uploadsPath); 
+//     },
+//     filename: function (req, file, cb) {
+//         const uniqueName = Date.now() + '-' + file.originalname;
+//         cb(null, uniqueName);
+//     },
+// });
+
+const upload = multer({ storage });
+
+// Helper to upload a buffer to cloudinary
+const uploadToCloudinary = (fileBuffer, originalname, folder) => {
+    return new Promise((resolve, reject) => {
+        cloudinary.uploader
+            .upload_stream(
+                {
+                    folder,
+                    resource_type: 'auto',
+                    public_id: originalname.split('.')[0],
+                },
+                (error, result) => {
+                    if (error) reject(error);
+                    else resolve(result);
+                }
+            )
+            .end(fileBuffer);
+    });
+};
+
+app.post('/upload', upload.fields([
+    { name: 'aadhar', maxCount: 1 },
+    { name: 'tenth', maxCount: 1 },
+    { name: 'twelfth', maxCount: 1 },
+    { name: 'degree', maxCount: 1 },
+    { name: 'photo', maxCount: 1 },
+]), async (req, res) => {
+    try {
+        const documentData = {};
+        for (const fieldName in req.files) {
+            const file = req.files[fieldName][0];
+            const result = await uploadToCloudinary(file.buffer, file.originalname, 'student-docs');
+
+            documentData[fieldName] = {
+                resourceType: result.resource_type,
+                createdAt: result.created_at,
+                fileType: result.format,
+                path: result.url,
+                fileUrl: result.secure_url,
+                displayName: file.originalname,
+            };
+        }
+
+        // Optional: Add studentId if you're tracking user
+        const savedDocument = new StudentDocuments({
+            ...documentData,
+            studentId: req.body.studentId || 'unknown',
+        });
+
+        await savedDocument.save();
+        res.status(200).json({ message: 'All documents uploaded', data: savedDocument });
+    } catch (err) {
+        res.status(500).json({ message: 'Upload failed', error: err.message });
+    }
+});
+
+
+app.get('/files', async (req, res) => {
+
+    try {
+        const files = await StudentDocuments.find();
+        if (!files || files.length === 0) {
+            return res.status(404).json({ message: 'No files found' });
+        }
+        res.status(200).json(files);
+    } catch (err) {
+        res.status(500).json({
+            status: 500,
+            message: 'Internal Server Error',
+            error: err.message,
+            stack: err.stack,
+        });
+    }
+});
 
 app.post('/register', async (req, res) => {
     res.setHeader('Access-Control-Allow-Origin', '*');
-    try {        
+    try {
         const userName = req.body.email;
-        let userExist = await User.findOne({ user_name: userName });        
+        let userExist = await User.findOne({ user_name: userName });
         if (!userExist) {
             const newUser = new User({
                 user_name: req.body.email,
                 password: req.body.password
             });
-            const token = jwt.sign({password:newUser.password, user_Name:newUser.user_name} , JWT_SECRET, { expiresIn: '1h' });
+            const token = jwt.sign({ password: newUser.password, user_Name: newUser.user_name }, JWT_SECRET, { expiresIn: '1h' });
             newUser.access_token = token.split('.')[2];
             let userData = await newUser.save();
             if (userData && typeof (userData) === 'object' && userData._id) {
@@ -169,10 +291,9 @@ app.get('/getUserList', async (req, res) => {
 });
 
 app.get('/getBlogData', async (req, res) => {
+
     try {
         let blogData = await blogs.find().exec();
-        console.log('blogData', blogData);
-        
         if (blogData) {
             res.send({
                 statusCode: 200,
@@ -241,6 +362,39 @@ app.post('/uploadImage', async (req, res) => {
 
     }
 })
+
+app.post("/create-checkout-session", async (req, res) => {
+    const { courseTitle, price } = req.body;
+
+    try {
+        const session = await stripe.checkout.sessions.create({
+            payment_method_types: ["card"],
+            line_items: [
+                {
+                    price_data: {
+                        currency: "inr",
+                        product_data: {
+                            name: courseTitle,
+                        },
+                        unit_amount: price * 100, // ₹4500 → 450000 paise
+                    },
+                    quantity: 1,
+                },
+            ],
+            mode: "payment",
+            success_url: "http://localhost:3000/payment-success",
+            cancel_url: "http://localhost:3000/payment-cancel",
+        });
+
+        res.json({ id: session.id });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+
+
+
 
 app.listen(3001, () => {
     console.log('Server is running on port 3001');
