@@ -16,6 +16,7 @@ const secret = crypto.randomBytes(64).toString('hex');
 const jwt = require('jsonwebtoken');
 const JWT_SECRET = process.env.JWT_SECRET || secret;
 app.use(express.json());
+const PORT = process.env.PORT || 3001;
 
 const cloudinary = require('cloudinary').v2;
 const { Readable } = require('stream');
@@ -26,7 +27,7 @@ const fs = require('fs');
 const path = require('path');
 
 const uploadsPath = path.join(__dirname, 'uploads'); // ✅ inside src/uploads
-
+const stripe = require("stripe")("sk_test_51RjIueFVHBcv9MBMTsZIZisRZgcc3siuGnBXuUw9NJHDO9hAmsKEYpsaLZnWV35XWTTL7zjeiHdFLgGHCx9Z7M1D00lR3ECrWV");
 
 const multer = require('multer');
 app.use((req, res, next) => {
@@ -362,13 +363,40 @@ app.post('/uploadImage', async (req, res) => {
     }
 })
 
+app.post("/create-checkout-session", async (req, res) => {
+  const { courseTitle, price } = req.body;
+
+  try {
+    const session = await stripe.checkout.sessions.create({
+      payment_method_types: ["card"],
+      line_items: [
+        {
+          price_data: {
+            currency: "inr",
+            product_data: {
+              name: courseTitle,
+            },
+            unit_amount: price * 100, // ₹4500 → 450000 paise
+          },
+          quantity: 1,
+        },
+      ],
+      mode: "payment",
+      success_url: "http://localhost:3001/payment-success",
+      cancel_url: "http://localhost:3001/payment-cancel",
+    });
+
+    res.json({ id: session.id });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.get('/test', (req, res) => {
   res.status(200).send('✅ Backend is running');
 });
 
-const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
-
 
 // mongo DB Connection
 
